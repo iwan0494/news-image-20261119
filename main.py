@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 POSTER_NAME = "poster-20261119.png"
-OUTPUT_DIR = Path("/output")
+OUTPUT_DIR = Path(os.environ.get("MAKEFUN_OUTPUT_DIR", "/output"))
 OUTPUT_PATH = OUTPUT_DIR / "entry.png"
 
 
