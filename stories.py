@@ -1,132 +1,122 @@
-# stories.py — data berita Kamis 19 November 2026 untuk poster R3.
-# Semua entri ditulis dengan kata-kata sendiri dari fakta spec.
-# Struktur: list of dict, bukan tuple.
+# stories.py — data berita Kamis 19 November 2026 (ronde 4).
+# Semua fakta ditulis dengan kata-kata builder dari spec; struktur data
+# (list of dict) dipilih sendiri. Penomoran cerita 1-25 tanpa lompat:
+# FEATURES 1-3, TILES 4-11, BRIEFS 12-25.
 
 FEATURES = [
     {
-        "kicker": "SHENZHEN · SUMMIT",
+        "num": 1,
+        "place": "SHENZHEN",
+        "kicker": "SUMMIT",
         "headline": "Trump, Xi and Putin hold first three-way summit",
-        "body": "At APEC in Shenzhen, the three leaders issue a 'Declaration on Peace' on nuclear risk.",
-        "source": "Reuters · AP · Xinhua",
-        "place": "Shenzhen",
+        "body": "Leaders of the US, China and Russia meet at APEC Shenzhen; a "
+                "'Declaration on Peace' covers nuclear risk and UN reform.",
+        "source": "Reuters, AP, Xinhua",
         "art": "summit",
-        "accent": "#B03A2E",
     },
     {
-        "kicker": "THE HAGUE · JUSTICE",
+        "num": 2,
+        "place": "THE HAGUE",
+        "kicker": "JUSTICE",
         "headline": "World Court: Myanmar committed genocide",
-        "body": "The ICJ rules 9–6: Myanmar is guilty of genocide against the Rohingya; reparations ordered.",
-        "source": "Al Jazeera · UN News",
-        "place": "The Hague",
+        "body": "The ICJ rules 9-6 that Myanmar is guilty of genocide against "
+                "the Rohingya and orders reparations.",
+        "source": "Al Jazeera, UN News",
         "art": "court",
-        "accent": "#1F4E79",
     },
     {
-        "kicker": "ANTALYA · CLIMATE",
+        "num": 3,
+        "place": "ANTALYA",
+        "kicker": "CLIMATE",
         "headline": "COP31 draft drops fossil fuels and $120bn aid goal",
-        "body": "The slim draft text cuts the adaptation aid target; talks are due to end on Friday.",
-        "source": "Reuters · AFP",
-        "place": "Antalya",
+        "body": "The COP31 draft cuts fossil fuels and slashes the $120 billion "
+                "adaptation aid target; talks end Friday.",
+        "source": "Reuters, AFP",
         "art": "climate",
-        "accent": "#1E7A4C",
     },
 ]
 
 TILES = [
     {
-        "kicker": "CRIMEA · WAR",
+        "num": 4,
+        "place": "CRIMEA",
+        "kicker": "WAR",
         "headline": "Ukraine hits Crimea bridge again",
-        "body": "Third strike in a week halts trains.",
+        "body": "Third attack in a week halts rail to Russia.",
         "source": "Euronews",
-        "place": "Crimea",
         "art": "bridge",
-        "accent": "#7A3E1E",
     },
     {
-        "kicker": "RIYADH · WAR",
+        "num": 5,
+        "place": "RIYADH",
+        "kicker": "WAR",
         "headline": "Saudis shoot down Houthi missiles",
-        "body": "Debris falls on the capital; none hurt.",
+        "body": "Debris falls on the capital; no casualties.",
         "source": "Reuters",
-        "place": "Riyadh",
         "art": "missile",
-        "accent": "#8A2B2B",
     },
     {
-        "kicker": "ODISHA · STORM",
+        "num": 6,
+        "place": "ODISHA",
+        "kicker": "STORM",
         "headline": "Cyclone Akvan nears India's coast",
-        "body": "100,000+ evacuated before landfall.",
+        "body": "100,000 evacuated ahead of Friday landfall.",
         "source": "IMD",
-        "place": "Odisha",
-        "art": "cyclone",
-        "accent": "#2E6E8E",
+        "art": "storm",
     },
     {
-        "kicker": "SEOUL · JUSTICE",
+        "num": 7,
+        "place": "SEOUL",
+        "kicker": "JUSTICE",
         "headline": "Korea's top court clears ex-PM Han",
-        "body": "Han Duck-soo's conviction overturned.",
+        "body": "Martial-law verdict on ex-PM Han void.",
         "source": "AP",
-        "place": "Seoul",
-        "art": "gavel",
-        "accent": "#4A4A8A",
+        "art": "court",
     },
     {
-        "kicker": "GREENLAND · SECURITY",
+        "num": 8,
+        "place": "GREENLAND",
+        "kicker": "SECURITY",
         "headline": "Denmark backs Arctic pact with US",
-        "body": "Parliament approves the deal 109–0.",
+        "body": "Parliament backs Greenland pact 109-0.",
         "source": "AP",
-        "place": "Greenland",
-        "art": "glacier",
-        "accent": "#2E7A8E",
+        "art": "ice",
     },
     {
-        "kicker": "NEW YORK · MARKETS",
+        "num": 9,
+        "place": "NEW YORK",
+        "kicker": "MARKETS",
         "headline": "Anthropic starts trading on Nasdaq",
-        "body": "Record $81bn sale was priced at $83.",
+        "body": "Record $81bn IPO, priced at $83 a share.",
         "source": "AP",
-        "place": "New York",
         "art": "chart",
-        "accent": "#1E6B3A",
     },
     {
-        "kicker": "WORLDWIDE · GAMES",
+        "num": 10,
+        "place": "WORLDWIDE",
+        "kicker": "GAMES",
         "headline": "GTA VI goes on sale after 13 years",
-        "body": "The midnight launch draws rave reviews.",
+        "body": "Midnight launch draws praise.",
         "source": "ABC",
-        "place": "Vice City",
         "art": "game",
-        "accent": "#6A2E8E",
     },
     {
-        "kicker": "BOGOTÁ · LABOUR",
+        "num": 11,
+        "place": "BOGOTA",
+        "kicker": "LABOUR",
         "headline": "Colombia's unions hold national strike",
-        "body": "Marches in three cities against reforms.",
+        "body": "Marches in three cities oppose reform.",
         "source": "Infobae",
-        "place": "Bogotá",
-        "art": "strike",
-        "accent": "#8E6E1E",
-    },
-]
-
-# Ubin ke-9 dan ke-10 dipakai sebagai cadangan bila grid diperluas; tidak
-# dirender di layout R3 (grid 2x4 memakai 8 ubin pertama).
-TILES_EXTRA = [
-    {
-        "kicker": "NAIROBI · SPORT",
-        "headline": "Marathon champion banned for doping",
-        "body": "Kenya's Peres Jepchirchir gets three years.",
-        "source": "ABC",
-        "place": "Nairobi",
-        "art": "runner",
-        "accent": "#8E2E5A",
+        "art": "march",
     },
 ]
 
 BRIEFS = [
     {"num": 12, "place": "Gaza", "text": "Israeli tanks cross the Yellow Line; Hamas calls it a truce breach.", "source": "AP"},
-    {"num": 13, "place": "London", "text": "Van Gogh sells for record $190.4m amid Nazi-history row.", "source": "ABC"},
-    {"num": 14, "place": "Mexico City", "text": "Banxico cuts rates to 6.25% on a 3–2 vote.", "source": "Banxico"},
-    {"num": 15, "place": "Canberra", "text": "Three killed and four groups hit by fresh sanctions over West Bank settlers.", "source": "ABC"},
-    {"num": 16, "place": "Mogadishu", "text": "Somalia accuses the UAE of secret military bases on its soil.", "source": "Mogadishu"},
+    {"num": 13, "place": "London", "text": "Van Gogh sells for a record $190.4m despite its Nazi history.", "source": "ABC"},
+    {"num": 14, "place": "Mexico City", "text": "Banxico cuts rates to 6.25% on a 3-2 vote.", "source": "Banxico"},
+    {"num": 15, "place": "Canberra", "text": "Three killed, four groups sanctioned over West Bank settlers.", "source": "ABC"},
+    {"num": 16, "place": "Mogadishu", "text": "Somalia accuses UAE of secret bases on its soil.", "source": "Mogadishu"},
     {"num": 17, "place": "Frankfurt", "text": "Deutsche Bank handled $582m in Epstein-linked deals.", "source": "FT"},
     {"num": 18, "place": "Washington", "text": "Senators warn AI cyber threats to national defences.", "source": "Washington"},
     {"num": 19, "place": "Rome", "text": "Author Corrado Augias dies at 91.", "source": "Euronews"},
@@ -139,27 +129,35 @@ BRIEFS = [
 ]
 
 STATS = [
-    {"value": "3", "label": "presidents at one table", "color": "#1F4E79"},
-    {"value": "9–6", "label": "World Court genocide vote", "color": "#1E7A4C"},
-    {"value": "$120bn", "label": "aid goal cut at COP31", "color": "#B03A2E"},
-    {"value": "$81bn", "label": "Anthropic's record IPO", "color": "#6A2E8E"},
-    {"value": "109–0", "label": "Danish vote on Arctic pact", "color": "#C25E10"},
-    {"value": "4.9%", "label": "Australian jobless rate", "color": "#0E7A7A"},
+    {"value": "3", "label": "presidents at one table", "color": (31, 119, 180)},
+    {"value": "9-6", "label": "World Court genocide vote", "color": (44, 160, 44)},
+    {"value": "$120bn", "label": "aid goal cut at COP31", "color": (214, 39, 40)},
+    {"value": "$81bn", "label": "Anthropic's record IPO", "color": (148, 103, 189)},
+    {"value": "109-0", "label": "Danish vote on Arctic pact", "color": (255, 127, 14)},
+    {"value": "4.9%", "label": "Australian jobless rate", "color": (23, 190, 207)},
 ]
 
-REGIONS = ["ASIA 3", "MIDDLE EAST 2", "EUROPE 6", "AFRICA 4", "AMERICAS 6", "OCEANIA 2", "GLOBAL 2"]
+REGIONS = [
+    ("ASIA", 3),
+    ("MIDDLE EAST", 2),
+    ("EUROPE", 6),
+    ("AFRICA", 4),
+    ("AMERICAS", 6),
+    ("OCEANIA", 2),
+    ("GLOBAL", 2),
+]
 
 LEFT_OUT = [
-    "18 NOV: EU's €45bn Ukraine loan plan",
+    "18 NOV: EU's \u20ac45bn Ukraine loan plan",
     "18 NOV: Iran fires on Kuwait and Bahrain",
     "18 NOV: Nvidia results",
-    "18 NOV: Jeffries named for US speaker",
-    "18 NOV: Voyager 1 crosses one light-day",
+    "18 NOV: Jeffries named for US speaker (251-11)",
+    "18 NOV: Voyager 1 crossing one light-day, 10:16 GMT",
     "20 NOV: COP31's scheduled close",
     "20 NOV: Cyclone Akvan's landfall",
 ]
 
-ATTRIBUTION = (
-    "Every story here happened, or was first reported, on Thursday 19 November 2026. "
-    "Sources: Reuters, AP, AFP, BBC, Al Jazeera, UN News, Euronews, ABC, RNZ, Xinhua, Nature."
+SUBHEAD = (
+    "Trump, Xi and Putin meet in Shenzhen - the World Court rules on Myanmar - "
+    "COP31 drops fossil fuels"
 )

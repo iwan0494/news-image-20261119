@@ -1,53 +1,46 @@
-# poster.py — mesin layout poster R3 "The World in One Day".
+# poster.py — mesin layout poster "The World in One Day" (ronde 4).
 # Menggambar poster 1024x1024 dari nol dengan primitif PIL saja:
-# tanpa file gambar eksternal, tanpa network, tanpa randomness.
+# tanpa file gambar eksternal, tanpa network. Data berita dari stories.py.
 
 import os
 from dataclasses import dataclass
 
 from PIL import Image, ImageDraw, ImageFont
 
-from stories import (
-    ATTRIBUTION,
-    BRIEFS,
-    FEATURES,
-    LEFT_OUT,
-    REGIONS,
-    STATS,
-    TILES,
-)
+from stories import BRIEFS, FEATURES, LEFT_OUT, REGIONS, STATS, SUBHEAD, TILES
 
-CANVAS_W = 1024
-CANVAS_H = 1024
-MARGIN = 24
+# ---------------------------------------------------------------- fonts ---
 
-_FONT_DIRS = [
+FONT_DIRS = [
     "/usr/share/fonts/truetype/dejavu",
     "/usr/share/fonts/dejavu",
     "/usr/local/share/fonts",
+    "/usr/share/fonts/truetype",
     os.path.expanduser("~/.fonts"),
 ]
 
-_FONT_FILES = {
-    "serif": ["DejaVuSerif.ttf", "DejaVuSerifCondensed.ttf"],
-    "serif_bold": ["DejaVuSerif-Bold.ttf", "DejaVuSerifCondensed-Bold.ttf"],
-    "sans": ["DejaVuSans.ttf", "DejaVuSansCondensed.ttf"],
-    "sans_bold": ["DejaVuSans-Bold.ttf", "DejaVuSansCondensed-Bold.ttf"],
+FONT_FILES = {
+    "serif": ["DejaVuSerif.ttf"],
+    "serif_bold": ["DejaVuSerif-Bold.ttf"],
+    "sans": ["DejaVuSans.ttf"],
+    "sans_bold": ["DejaVuSans-Bold.ttf"],
+    "sans_italic": ["DejaVuSans-Oblique.ttf", "DejaVuSans.ttf"],
+    "serif_italic": ["DejaVuSerif-Italic.ttf", "DejaVuSerif.ttf"],
 }
 
-_cache = {}
+_font_cache = {}
 
 
 def load_font(role, size):
     """Muat font DejaVu dari path sistem yang umum; fallback ke default."""
     key = (role, size)
-    if key in _cache:
-        return _cache[key]
+    if key in _font_cache:
+        return _font_cache[key]
     font = None
-    for name in _FONT_FILES.get(role, []):
-        for folder in _FONT_DIRS:
-            path = os.path.join(folder, name)
-            if os.path.exists(path):
+    for name in FONT_FILES.get(role, ["DejaVuSans.ttf"]):
+        for d in FONT_DIRS:
+            path = os.path.join(d, name)
+            if os.path.isfile(path):
                 try:
                     font = ImageFont.truetype(path, size)
                 except OSError:
@@ -58,505 +51,464 @@ def load_font(role, size):
             break
     if font is None:
         font = ImageFont.load_default()
-    _cache[key] = font
+    _font_cache[key] = font
     return font
 
 
 def wrap_text(text, font, max_width):
-    """Bungkus teks jadi beberapa baris yang muat dalam max_width."""
+    """Pecah teks menjadi baris-baris yang muat dalam max_width (pixel)."""
     words = text.split()
+    if not words:
+        return [""]
     lines = []
-    current = ""
-    for word in words:
-        trial = word if not current else current + " " + word
+    current = words[0]
+    for word in words[1:]:
+        trial = current + " " + word
         if font.getlength(trial) <= max_width:
             current = trial
         else:
-            if current:
-                lines.append(current)
+            lines.append(current)
             current = word
-    if current:
-        lines.append(current)
+    lines.append(current)
     return lines
 
 
+# ---------------------------------------------------------------- style ---
+
 @dataclass
 class Style:
-    paper: str = "#F7F3E8"
-    ink: str = "#1A1A1A"
-    navy: str = "#14263F"
-    navy_soft: str = "#1F3A5F"
-    red: str = "#A93226"
-    red_dark: str = "#7E1F16"
-    gold: str = "#C9A227"
-    grey: str = "#5A5A5A"
-    hairline: str = "#B8AE96"
-    sea: str = "#D7E6F0"
-    land: str = "#D9C89A"
-    panel: str = "#FFFFFF"
-    date_size: int = 46
-    small_caps: int = 15
-    badge_size: int = 13
-    subhead_size: int = 18
-    region_size: int = 11
-    stat_num: int = 27
-    stat_label: int = 11
-    feat_kicker: int = 12
-    feat_head: int = 19
-    feat_body: int = 13
-    feat_src: int = 10
-    tile_kicker: int = 10
-    tile_head: int = 13
-    tile_body: int = 11
-    tile_src: int = 9
-    brief_title: int = 12
-    brief_text: int = 10
-    check_size: int = 11
-    attrib_size: int = 9
+    paper: tuple = (247, 243, 232)
+    navy: tuple = (16, 32, 64)
+    navy_light: tuple = (28, 52, 96)
+    red: tuple = (178, 34, 34)
+    dark_red: tuple = (139, 0, 0)
+    ink: tuple = (26, 26, 26)
+    grey: tuple = (110, 110, 105)
+    line: tuple = (200, 192, 175)
+    white: tuple = (255, 255, 255)
+    cream: tuple = (250, 246, 236)
+    gold: tuple = (201, 162, 39)
+    teal: tuple = (18, 130, 130)
+    green: tuple = (34, 120, 60)
+    sky: tuple = (70, 130, 180)
 
 
-# --- Peta dunia sederhana (lon/lat kasar, digambar sebagai poligon) --------
-
-_CONTINENTS = {
-    "north_america": [(-168, 66), (-140, 70), (-120, 72), (-95, 80), (-80, 73), (-75, 60), (-80, 45), (-75, 35), (-80, 25), (-90, 20), (-97, 16), (-105, 20), (-115, 30), (-125, 40), (-125, 48), (-140, 60), (-165, 60)],
-    "south_america": [(-80, 10), (-75, 5), (-70, 0), (-60, -5), (-50, -5), (-40, -10), (-35, -20), (-40, -30), (-50, -35), (-60, -40), (-65, -50), (-70, -55), (-75, -45), (-75, -30), (-80, -15), (-80, -5)],
-    "europe": [(-10, 36), (-5, 44), (0, 48), (5, 53), (10, 57), (18, 56), (25, 60), (30, 62), (25, 70), (15, 70), (5, 62), (0, 55), (-5, 50), (-10, 43)],
-    "africa": [(-10, 35), (0, 36), (10, 37), (20, 32), (30, 31), (35, 28), (40, 20), (45, 12), (50, 11), (45, 0), (40, -10), (35, -20), (30, -30), (20, -35), (15, -30), (12, -18), (10, -5), (5, 5), (-5, 5), (-15, 10), (-17, 15), (-15, 25)],
-    "asia": [(30, 70), (40, 68), (50, 70), (60, 70), (70, 72), (80, 73), (90, 75), (100, 77), (110, 76), (120, 73), (130, 72), (140, 72), (150, 70), (160, 65), (160, 60), (155, 55), (145, 50), (140, 45), (135, 40), (130, 35), (127, 33), (120, 30), (110, 25), (105, 20), (100, 15), (95, 10), (90, 15), (85, 20), (80, 15), (75, 10), (70, 20), (65, 25), (60, 25), (55, 27), (50, 30), (45, 30), (40, 32), (35, 36), (30, 36)],
-    "australia": [(113, -22), (120, -15), (130, -12), (135, -12), (142, -11), (145, -15), (150, -22), (153, -27), (150, -37), (145, -38), (140, -38), (135, -35), (130, -32), (125, -33), (120, -35), (115, -35), (113, -30)],
-}
-
-# Titik bernomor di peta: (nomor, lon, lat) — posisi disebar sedikit
-# supaya pin yang berdekatan (Antalya/Crimea) tidak saling menutup.
-_MAP_PINS = [
-    (1, 114, 22), (2, 4, 52), (3, 28, 35), (4, 37, 47), (5, 47, 25),
-    (6, 85, 20), (7, 127, 37), (8, -42, 72), (9, -74, 41), (11, -74, 5),
-    (12, 37, -1),
-]
-
-
-def _project(lon, lat, box):
-    """Petakan lon/lat ke dalam box (x0, y0, x1, y1)."""
-    x0, y0, x1, y1 = box
-    x = x0 + (lon + 170.0) / 360.0 * (x1 - x0)
-    y = y1 - (lat + 55.0) / 135.0 * (y1 - y0)
-    return x, y
-
-
-def draw_map(draw, box):
-    """Gambar peta dunia sederhana + titik merah bernomor."""
-    x0, y0, x1, y1 = box
-    draw.rectangle(box, fill="#D7E6F0", outline="#B8AE96", width=1)
-    for pts in _CONTINENTS.values():
-        poly = [_project(lon, lat, box) for lon, lat in pts]
-        draw.polygon(poly, fill="#D9C89A", outline="#A89468")
-    for num, lon, lat in _MAP_PINS:
-        cx, cy = _project(lon, lat, box)
-        r = 6
-        draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill="#A93226", outline="#FFFFFF", width=1)
-        f = load_font("sans_bold", 9)
-        tw = draw.textlength(str(num), font=f)
-        draw.text((cx - tw / 2, cy - 5), str(num), font=f, fill="#FFFFFF")
-
-
-def draw_summit(draw, box):
-    """Ilustrasi summit: meja + tiga tokoh + tiga bendera."""
-    x0, y0, x1, y1 = box
-    w = x1 - x0
-    h = y1 - y0
-    draw.rectangle(box, fill="#1F3A5F")
-    # backdrop panel
-    draw.rectangle([x0, y0, x1, y0 + int(h * 0.52)], fill="#2A4A73")
-    # tiga bendera di tiang
-    flag_w = int(w * 0.16)
-    flag_h = int(h * 0.22)
-    flag_x = [x0 + int(w * 0.10), x0 + int(w * 0.42), x0 + int(w * 0.74)]
-    # US: garis merah-putih + sudut biru
-    fx, fy = flag_x[0], y0 + 8
-    for i in range(5):
-        draw.rectangle([fx, fy + i * (flag_h // 5), fx + flag_w, fy + (i + 1) * (flag_h // 5)],
-                       fill="#B03A2E" if i % 2 == 0 else "#FFFFFF")
-    draw.rectangle([fx, fy, fx + flag_w // 2, fy + flag_h // 2], fill="#1F3A5F")
-    # China: merah + bintang kuning
-    fx, fy = flag_x[1], y0 + 8
-    draw.rectangle([fx, fy, fx + flag_w, fy + flag_h], fill="#DE2910")
-    draw.ellipse([fx + 4, fy + 4, fx + 12, fy + 12], fill="#FFDE00")
-    draw.ellipse([fx + flag_w - 12, fy + 4, fx + flag_w - 4, fy + 12], fill="#FFDE00")
-    # Rusia: putih-biru-merah
-    fx, fy = flag_x[2], y0 + 8
-    for i, col in enumerate(["#FFFFFF", "#0039A6", "#D52B1E"]):
-        draw.rectangle([fx, fy + i * (flag_h // 3), fx + flag_w, fy + (i + 1) * (flag_h // 3)], fill=col)
-    # tiga tokoh di balik meja
-    heads = [x0 + int(w * 0.18), x0 + int(w * 0.50), x0 + int(w * 0.82)]
-    hy = y0 + int(h * 0.42)
-    for cx, suit, tie in zip(heads, ["#20242A", "#1A1A1A", "#2A2A2A"], ["#B03A2E", "#DE2910", "#0039A6"]):
-        draw.ellipse([cx - 13, hy - 13, cx + 13, hy + 13], fill="#E8C39E", outline="#8A6B4A")
-        draw.rectangle([cx - 22, hy + 13, cx + 22, y0 + int(h * 0.78)], fill=suit)
-        draw.polygon([(cx - 5, hy + 13), (cx + 5, hy + 13), (cx, hy + 30)], fill=tie)
-    # meja
-    draw.rectangle([x0 + 6, y0 + int(h * 0.78), x1 - 6, y1 - 8], fill="#6B4A2A", outline="#4A3018")
-    draw.line([x0 + 6, y0 + int(h * 0.78), x1 - 6, y0 + int(h * 0.78)], fill="#C9A227", width=2)
-    # pelat nama
-    nf = load_font("sans_bold", 11)
-    for cx, name in zip(heads, ["TRUMP", "XI", "PUTIN"]):
-        tw = draw.textlength(name, font=nf)
-        draw.rectangle([cx - tw / 2 - 4, y1 - 26, cx + tw / 2 + 4, y1 - 12], fill="#F7F3E8")
-        draw.text((cx - tw / 2, y1 - 25), name, font=nf, fill="#14263F")
-
-
-def draw_court(draw, box):
-    """Ilustrasi pengadilan: gedung + timbangan, lencana 9–6."""
-    x0, y0, x1, y1 = box
-    w = x1 - x0
-    h = y1 - y0
-    draw.rectangle(box, fill="#E8E0CC")
-    # gedung
-    gx0, gy0 = x0 + int(w * 0.06), y0 + int(h * 0.30)
-    gx1, gy1 = x0 + int(w * 0.62), y1 - 10
-    draw.rectangle([gx0, gy0, gx1, gy1], fill="#B08D57", outline="#7A5C2E")
-    draw.polygon([(gx0 - 6, gy0), ((gx0 + gx1) // 2, gy0 - int(h * 0.16)), (gx1 + 6, gy0)], fill="#8A6B3A")
-    for i in range(4):
-        cx = gx0 + int((gx1 - gx0) * (0.18 + 0.21 * i))
-        draw.rectangle([cx - 5, gy0 + 8, cx + 5, gy1 - 14], fill="#F7F3E8")
-    draw.rectangle([gx0, gy1 - 14, gx1, gy1], fill="#7A5C2E")
-    # timbangan
-    sx = x0 + int(w * 0.80)
-    sy = y0 + int(h * 0.22)
-    draw.line([sx, sy, sx, y1 - 22], fill="#3A3A3A", width=3)
-    draw.line([sx - 26, sy + 12, sx + 26, sy + 12], fill="#3A3A3A", width=3)
-    for dx in (-26, 26):
-        draw.line([sx + dx, sy + 12, sx + dx, sy + 30], fill="#3A3A3A", width=2)
-        draw.polygon([(sx + dx - 12, sy + 30), (sx + dx + 12, sy + 30), (sx + dx, sy + 46)], fill="#C9A227", outline="#8A6B3A")
-    draw.ellipse([sx - 6, sy - 6, sx + 6, sy + 6], fill="#C9A227", outline="#8A6B3A")
-    # lencana 9–6
-    bf = load_font("sans_bold", 15)
-    label = "9–6"
-    tw = draw.textlength(label, font=bf)
-    draw.rectangle([x1 - int(tw) - 18, y0 + 8, x1 - 8, y0 + 30], fill="#A93226")
-    draw.text((x1 - int(tw) - 13, y0 + 10), label, font=bf, fill="#FFFFFF")
-
-
-def draw_climate(draw, box):
-    """Ilustrasi iklim: globe + termometer + matahari."""
-    x0, y0, x1, y1 = box
-    w = x1 - x0
-    h = y1 - y0
-    draw.rectangle(box, fill="#0E5E52")
-    # matahari
-    sun_cx, sun_cy = x0 + int(w * 0.82), y0 + int(h * 0.20)
-    draw.ellipse([sun_cx - 14, sun_cy - 14, sun_cx + 14, sun_cy + 14], fill="#F2C230")
-    # globe
-    gc_x, gc_y = x0 + int(w * 0.38), y0 + int(h * 0.52)
-    gr = int(min(w, h) * 0.30)
-    draw.ellipse([gc_x - gr, gc_y - gr, gc_x + gr, gc_y + gr], fill="#2E7AC2", outline="#FFFFFF", width=2)
-    draw.polygon([(gc_x - gr + 8, gc_y - 6), (gc_x - 10, gc_y - gr + 12), (gc_x + 6, gc_y - gr + 18), (gc_x + 2, gc_y - 2), (gc_x - 18, gc_y + 4)], fill="#3E9B4F")
-    draw.polygon([(gc_x + 4, gc_y + 10), (gc_x + gr - 10, gc_y + 2), (gc_x + gr - 6, gc_y + gr - 12), (gc_x + 12, gc_y + gr - 8), (gc_x - 2, gc_y + 22)], fill="#3E9B4F")
-    # termometer
-    tx = x0 + int(w * 0.78)
-    draw.rounded_rectangle([tx - 7, y0 + int(h * 0.30), tx + 7, y1 - int(h * 0.28)], radius=7, fill="#FFFFFF", outline="#8A8A8A")
-    draw.rounded_rectangle([tx - 4, y0 + int(h * 0.55), tx + 4, y1 - int(h * 0.30)], radius=4, fill="#D43A2A")
-    draw.ellipse([tx - 13, y1 - int(h * 0.30), tx + 13, y1 - int(h * 0.16)], fill="#D43A2A", outline="#8A8A8A")
-    for i, yy in enumerate([0.38, 0.48, 0.58]):
-        draw.line([tx + 8, y0 + int(h * yy), tx + 14, y0 + int(h * yy)], fill="#FFFFFF", width=2)
-    # garis bawah: COP31
-    cf = load_font("sans_bold", 12)
-    label = "COP31 · ANTALYA"
-    tw = draw.textlength(label, font=cf)
-    draw.text((x0 + (w - tw) / 2, y1 - 20), label, font=cf, fill="#FFFFFF")
-
-
-def draw_icon(draw, box, kind):
-    """Strip ilustrasi kecil untuk ubin, sesuai jenis cerita."""
-    x0, y0, x1, y1 = box
-    w = x1 - x0
-    h = y1 - y0
-    cx = (x0 + x1) // 2
-    cy = (y0 + y1) // 2
-    if kind == "bridge":
-        draw.rectangle(box, fill="#BFD9E8")
-        draw.rectangle([x0, y1 - 10, x1, y1], fill="#3E7AA8")
-        draw.arc([x0 + 10, y0 + 6, x1 - 10, y0 + h], start=180, end=360, fill="#5A4A3A", width=3)
-        draw.line([x0 + 14, y0 + 8, x0 + 14, y1 - 10], fill="#5A4A3A", width=3)
-        draw.line([x1 - 14, y0 + 8, x1 - 14, y1 - 10], fill="#5A4A3A", width=3)
-    elif kind == "missile":
-        draw.rectangle(box, fill="#2A2A3A")
-        draw.polygon([(cx - 4, y0 + 6), (cx + 4, y0 + 6), (cx + 2, cy + 4), (cx - 2, cy + 4)], fill="#C0C0C0")
-        draw.rectangle([cx - 3, cy + 2, cx + 3, cy + 12], fill="#8A8A8A")
-        draw.polygon([(cx - 6, cy + 12), (cx + 6, cy + 12), (cx, y1 - 4)], fill="#E8641B")
-        draw.ellipse([x0 + 8, y1 - 10, x0 + 16, y1 - 2], fill="#F2C230")
-        draw.ellipse([x1 - 16, y1 - 12, x1 - 8, y1 - 4], fill="#F2C230")
-    elif kind == "cyclone":
-        draw.rectangle(box, fill="#CFE3EE")
-        for r in (6, 12, 18):
-            draw.arc([cx - r, cy - r, cx + r, cy + r], start=20, end=300, fill="#2E6E8E", width=3)
-        draw.line([x0 + 10, y1 - 4, x0 + 16, y1 - 10], fill="#2E6E8E", width=2)
-        draw.line([x1 - 16, y1 - 4, x1 - 10, y1 - 10], fill="#2E6E8E", width=2)
-    elif kind == "gavel":
-        draw.rectangle(box, fill="#E8DCC0")
-        draw.rectangle([cx - 18, cy - 8, cx + 8, cy + 2], fill="#6B4A2A")
-        draw.line([cx + 8, cy - 3, cx + 22, cy + 6], fill="#8A6B3A", width=4)
-        draw.rectangle([cx - 16, cy + 10, cx + 16, cy + 14], fill="#4A3018")
-    elif kind == "glacier":
-        draw.rectangle(box, fill="#BFE0EA")
-        draw.polygon([(x0 + 4, y1), (x0 + int(w * 0.30), y0 + 6), (x0 + int(w * 0.55), y1)], fill="#7A9AB0")
-        draw.polygon([(x0 + int(w * 0.40), y1), (x0 + int(w * 0.68), y0 + 2), (x1 - 4, y1)], fill="#5A7A90")
-        draw.polygon([(x0 + int(w * 0.24), y0 + 12), (x0 + int(w * 0.30), y0 + 6), (x0 + int(w * 0.36), y0 + 12)], fill="#FFFFFF")
-        draw.rectangle([x0, y1 - 6, x1, y1], fill="#DFF2F7")
-    elif kind == "chart":
-        draw.rectangle(box, fill="#0E3A24")
-        pts = [(x0 + 6, y1 - 8), (x0 + int(w * 0.3), y1 - 16), (x0 + int(w * 0.5), y1 - 12),
-               (x0 + int(w * 0.7), y1 - 24), (x1 - 6, y1 - 30)]
-        draw.line(pts, fill="#3ED97A", width=3)
-        for px, py in pts:
-            draw.ellipse([px - 2, py - 2, px + 2, py + 2], fill="#F2C230")
-    elif kind == "game":
-        draw.rectangle(box, fill="#2A0E4A")
-        for i, bh in enumerate([10, 18, 14, 22, 12]):
-            bx = x0 + 8 + i * int(w * 0.18)
-            draw.rectangle([bx, y1 - bh - 4, bx + int(w * 0.13), y1 - 4], fill="#4A2A7A")
-        draw.ellipse([cx - 8, y0 + 4, cx + 8, y0 + 20], fill="#F2A93B")
-    elif kind == "strike":
-        draw.rectangle(box, fill="#E8D9A8")
-        for i, hx in enumerate([0.18, 0.38, 0.58, 0.78]):
-            px = x0 + int(w * hx)
-            draw.ellipse([px - 6, cy - 8, px + 6, cy + 4], fill="#E8C39E", outline="#8A6B4A")
-            draw.rectangle([px - 8, cy + 4, px + 8, y1 - 2], fill="#3A5A8A")
-        draw.rectangle([x0 + int(w * 0.30), y0 + 2, x0 + int(w * 0.70), y0 + 10], fill="#A93226")
-    elif kind == "runner":
-        draw.rectangle(box, fill="#C25E10")
-        draw.ellipse([x0 + 8, y0 + 6, x1 - 8, y1 - 6], outline="#FFFFFF", width=2)
-        draw.line([x0 + 8, cy, x1 - 8, cy], fill="#FFFFFF", width=1)
-        draw.ellipse([cx - 5, cy - 12, cx + 5, cy - 2], fill="#1A1A1A")
-        draw.line([cx, cy - 2, cx - 8, cy + 8], fill="#1A1A1A", width=3)
-        draw.line([cx, cy - 2, cx + 8, cy + 8], fill="#1A1A1A", width=3)
-    else:
-        draw.rectangle(box, fill="#D9D2C0")
-        draw.ellipse([cx - 8, cy - 8, cx + 8, cy + 8], fill="#8A8A8A")
-
-
-_ART_DRAWERS = {"summit": draw_summit, "court": draw_court, "climate": draw_climate}
-
+# ---------------------------------------------------------------- poster --
 
 class Poster:
-    """Satu poster: simpan Image + ImageDraw, bangun per seksi."""
+    """Menggambar satu poster 1024x1024."""
 
-    def __init__(self, style=None):
-        self.style = style or Style()
-        self.image = Image.new("RGB", (CANVAS_W, CANVAS_H), self.style.paper)
-        self.draw = ImageDraw.Draw(self.image)
+    W = 1024
+    H = 1024
+    MARGIN = 16
 
-    # -- util ---------------------------------------------------------------
-    def _wrapped(self, text, font, max_w, max_lines=None):
-        lines = wrap_text(text, font, max_w)
-        if max_lines is not None:
-            lines = lines[:max_lines]
-        return lines
+    def __init__(self):
+        self.style = Style()
+        self.img = Image.new("RGB", (self.W, self.H), self.style.paper)
+        self.draw = ImageDraw.Draw(self.img)
 
-    def _text_block(self, x, y, lines, font, fill, leading=1.25):
-        for line in lines:
-            self.draw.text((x, y), line, font=font, fill=fill)
-            y += int(font.size * leading)
-        return y
-
-    # -- seksi --------------------------------------------------------------
+    # ------------------------------------------------------------ banner --
     def banner(self):
-        s = self.style
         d = self.draw
-        d.rectangle([0, 0, CANVAS_W, 146], fill=s.navy)
-        d.rectangle([0, 146, CANVAS_W, 149], fill=s.gold)
-        # baris atas: label kiri + lencana kanan
-        f_small = load_font("sans_bold", s.small_caps)
-        d.text((MARGIN, 18), "THE WORLD IN ONE DAY", font=f_small, fill="#FFFFFF")
-        badge = "25 STORIES · EVERY CONTINENT"
-        f_badge = load_font("sans_bold", s.badge_size)
-        bw = int(d.textlength(badge, font=f_badge)) + 20
-        d.rounded_rectangle([CANVAS_W - MARGIN - bw, 14, CANVAS_W - MARGIN, 14 + 26], radius=4, fill=s.red)
-        d.text((CANVAS_W - MARGIN - bw + 10, 19), badge, font=f_badge, fill="#FFFFFF")
-        # tanggal besar di tengah
-        f_date = load_font("serif_bold", s.date_size)
+        s = self.style
+        d.rectangle([0, 0, self.W, 148], fill=s.navy)
+        d.rectangle([0, 148, self.W, 151], fill=s.gold)
+        # kiri: nama koran kecil
+        f_small = load_font("sans_bold", 17)
+        d.text((self.MARGIN + 4, 18), "THE WORLD IN ONE DAY",
+               font=f_small, fill=s.white)
+        # tengah: tanggal serif sangat besar
+        f_date = load_font("serif_bold", 46)
         date = "THURSDAY 19 NOVEMBER 2026"
         tw = d.textlength(date, font=f_date)
-        d.text(((CANVAS_W - tw) / 2, 52), date, font=f_date, fill="#FFFFFF")
-        # garis emas tipis di bawah tanggal
-        d.line([MARGIN, 124, CANVAS_W - MARGIN, 124], fill=s.gold, width=1)
+        d.text(((self.W - tw) / 2, 52), date, font=f_date, fill=s.white)
+        # kanan: lencana merah
+        badge = "25 STORIES \u00b7 EVERY CONTINENT"
+        f_badge = load_font("sans_bold", 15)
+        bw = d.textlength(badge, font=f_badge) + 24
+        bx0 = self.W - self.MARGIN - bw
+        d.rounded_rectangle([bx0, 14, bx0 + bw, 42], radius=14, fill=s.red)
+        d.text((bx0 + 12, 21), badge, font=f_badge, fill=s.white)
+        # garis bawah pita: ringkasan wilayah
+        f_reg = load_font("sans", 13)
+        regions = "  \u00b7  ".join("%s %d" % (name, n) for name, n in REGIONS)
+        rw = d.textlength(regions, font=f_reg)
+        d.text(((self.W - rw) / 2, 118), regions, font=f_reg,
+               fill=(190, 200, 220))
 
+    # ----------------------------------------------------------- subhead --
     def subhead(self):
+        d = self.draw
         s = self.style
-        f = load_font("serif", s.subhead_size)
-        line = "Trump, Xi and Putin share one table · World Court finds genocide in Myanmar · COP31 draft drops fossil fuels"
-        tw = self.draw.textlength(line, font=f)
-        self.draw.text(((CANVAS_W - tw) / 2, 156), line, font=f, fill=s.red_dark)
+        f = load_font("serif_italic", 19)
+        tw = d.textlength(SUBHEAD, font=f)
+        d.text(((self.W - tw) / 2, 156), SUBHEAD, font=f, fill=s.dark_red)
 
-    def regions(self):
-        s = self.style
-        f = load_font("sans_bold", s.region_size)
-        line = "  ·  ".join(REGIONS)
-        tw = self.draw.textlength(line, font=f)
-        self.draw.text(((CANVAS_W - tw) / 2, 182), line, font=f, fill=s.grey)
-
+    # ------------------------------------------------------------- stats --
     def stats(self):
-        s = self.style
         d = self.draw
-        y0, y1 = 202, 254
-        d.rectangle([MARGIN, y0, CANVAS_W - MARGIN, y1], fill=s.panel, outline=s.hairline, width=1)
-        cell_w = (CANVAS_W - 2 * MARGIN) / len(STATS)
-        for i, stat in enumerate(STATS):
-            x = MARGIN + i * cell_w
-            if i > 0:
-                d.line([x, y0 + 8, x, y1 - 8], fill=s.hairline, width=1)
-            f_num = load_font("sans_bold", s.stat_num)
-            num = stat["value"]
-            tw = d.textlength(num, font=f_num)
-            d.text((x + (cell_w - tw) / 2, y0 + 6), num, font=f_num, fill=stat["color"])
-            f_lab = load_font("sans", s.stat_label)
-            lines = self._wrapped(stat["label"], f_lab, cell_w - 12, max_lines=2)
-            ly = y0 + 6 + s.stat_num + 2
-            for line in lines:
+        s = self.style
+        y0, y1 = 182, 252
+        n = len(STATS)
+        avail = self.W - 2 * self.MARGIN
+        bw = avail // n
+        for i, st in enumerate(STATS):
+            x0 = self.MARGIN + i * bw
+            x1 = x0 + bw - 8
+            d.rounded_rectangle([x0, y0, x1, y1], radius=6,
+                                fill=s.cream, outline=s.line, width=1)
+            f_val = load_font("sans_bold", 26)
+            val = st["value"]
+            vw = d.textlength(val, font=f_val)
+            d.text((x0 + (bw - 8 - vw) / 2, y0 + 8), val,
+                   font=f_val, fill=st["color"])
+            f_lab = load_font("sans", 11)
+            for j, line in enumerate(wrap_text(st["label"], f_lab, bw - 16)):
                 lw = d.textlength(line, font=f_lab)
-                d.text((x + (cell_w - lw) / 2, ly), line, font=f_lab, fill=s.grey)
-                ly += s.stat_label + 1
+                d.text((x0 + (bw - 8 - lw) / 2, y0 + 40 + j * 13),
+                       line, font=f_lab, fill=s.ink)
 
+    # ---------------------------------------------------------- features --
     def features(self):
-        s = self.style
         d = self.draw
-        y0, y1 = 262, 510
+        s = self.style
+        y0, y1 = 262, 500
+        avail = self.W - 2 * self.MARGIN
         gap = 10
-        cell_w = (CANVAS_W - 2 * MARGIN - 2 * gap) / 3
+        pw = (avail - 2 * gap) // 3
         for i, feat in enumerate(FEATURES):
-            x0 = MARGIN + i * (cell_w + gap)
-            x1 = x0 + cell_w
-            d.rectangle([x0, y0, x1, y1], fill=s.panel, outline=s.hairline, width=1)
-            # ilustrasi ~55% tinggi panel
-            art_h = int((y1 - y0) * 0.52)
-            drawer = _ART_DRAWERS.get(feat["art"])
-            if drawer is not None:
-                drawer(d, (x0 + 1, y0 + 1, x1 - 1, y0 + art_h))
-            d.line([x0, y0 + art_h, x1, y0 + art_h], fill=feat["accent"], width=3)
+            x0 = self.MARGIN + i * (pw + gap)
+            x1 = x0 + pw
+            d.rounded_rectangle([x0, y0, x1, y1], radius=6,
+                                fill=s.white, outline=s.line, width=1)
+            # nomor cerita
+            self._num_badge(x0 + 8, y0 + 8, feat["num"])
+            # ilustrasi ~46% tinggi panel (dulu 52%: teks bawah menabrak sumber)
+            art_h = int((y1 - y0) * 0.46)
+            art = (x0 + 6, y0 + 6, x1 - 6, y0 + 6 + art_h)
+            if feat["art"] == "summit":
+                self.draw_summit(art)
+            elif feat["art"] == "court":
+                self.draw_court(art)
+            else:
+                self.draw_climate(art)
+            ty = y0 + 6 + art_h + 8
             # kicker
-            f_k = load_font("sans_bold", s.feat_kicker)
-            d.text((x0 + 10, y0 + art_h + 8), feat["kicker"], font=f_k, fill=feat["accent"])
+            f_kick = load_font("sans_bold", 12)
+            d.text((x0 + 10, ty), "%s \u00b7 %s" % (feat["place"], feat["kicker"]),
+                   font=f_kick, fill=s.red)
+            ty += 17
             # headline 2 baris
-            f_h = load_font("serif_bold", s.feat_head)
-            head_lines = self._wrapped(feat["headline"], f_h, cell_w - 20, max_lines=2)
-            hy = y0 + art_h + 8 + s.feat_kicker + 6
-            hy = self._text_block(x0 + 10, hy, head_lines, f_h, s.ink, leading=1.12)
-            # ringkasan 2 baris
-            f_b = load_font("serif", s.feat_body)
-            body_lines = self._wrapped(feat["body"], f_b, cell_w - 20, max_lines=2)
-            hy = self._text_block(x0 + 10, hy + 4, body_lines, f_b, s.ink, leading=1.2)
-            # sumber
-            f_s = load_font("sans", s.feat_src)
-            d.text((x0 + 10, y1 - 18), feat["source"], font=f_s, fill=s.grey)
+            f_head = load_font("serif_bold", 19)
+            for line in wrap_text(feat["headline"], f_head, pw - 20)[:2]:
+                d.text((x0 + 10, ty), line, font=f_head, fill=s.ink)
+                ty += 22
+            ty += 3
+            # ringkasan 2 baris (jarak aman ke sumber di bawah)
+            f_body = load_font("sans", 12)
+            for line in wrap_text(feat["body"], f_body, pw - 20)[:2]:
+                d.text((x0 + 10, ty), line, font=f_body, fill=s.ink)
+                ty += 14
+            # sumber di posisi tetap, jauh di bawah baris body terakhir
+            f_src = load_font("sans_italic", 10)
+            d.text((x0 + 10, y1 - 16), feat["source"], font=f_src, fill=s.grey)
 
+    # ------------------------------------------------------------- tiles --
     def tiles(self):
-        s = self.style
         d = self.draw
-        y0 = 518
-        rows = 2
-        cols = 4
+        s = self.style
+        y0 = 510
+        avail = self.W - 2 * self.MARGIN
         gap = 8
-        cell_w = (CANVAS_W - 2 * MARGIN - (cols - 1) * gap) / cols
-        cell_h = 110
-        for idx, tile in enumerate(TILES[: rows * cols]):
-            r = idx // cols
-            c = idx % cols
-            x0 = MARGIN + c * (cell_w + gap)
-            x1 = x0 + cell_w
-            ty0 = y0 + r * (cell_h + gap)
-            ty1 = ty0 + cell_h
-            d.rectangle([x0, ty0, x1, ty1], fill=s.panel, outline=s.hairline, width=1)
-            # strip ilustrasi
-            draw_icon(d, (x0 + 1, ty0 + 1, x1 - 1, ty0 + 33), tile["art"])
-            # nomor urut + kicker
-            f_n = load_font("sans_bold", 11)
-            num = str(idx + 4)
-            d.ellipse([x0 + 6, ty0 + 37, x0 + 22, ty0 + 53], fill=tile["accent"])
-            tw = d.textlength(num, font=f_n)
-            d.text((x0 + 14 - tw / 2, ty0 + 39), num, font=f_n, fill="#FFFFFF")
-            f_k = load_font("sans_bold", s.tile_kicker)
-            d.text((x0 + 26, ty0 + 40), tile["kicker"], font=f_k, fill=tile["accent"])
-            # headline 2 baris
-            f_h = load_font("serif_bold", 12)
-            head_lines = self._wrapped(tile["headline"], f_h, cell_w - 12, max_lines=2)
-            hy = ty0 + 56
-            hy = self._text_block(x0 + 6, hy, head_lines, f_h, s.ink, leading=1.1)
-            # ringkasan 1 baris
-            f_b = load_font("serif", 10)
-            body_lines = self._wrapped(tile["body"], f_b, cell_w - 12, max_lines=1)
-            self._text_block(x0 + 6, hy + 2, body_lines, f_b, s.ink, leading=1.15)
-            # sumber
-            f_s = load_font("sans", s.tile_src)
-            d.text((x0 + 6, ty1 - 12), tile["source"], font=f_s, fill=s.grey)
+        tw = (avail - 3 * gap) // 4
+        th = 96
+        for idx, tile in enumerate(TILES):
+            row, col = divmod(idx, 4)
+            x0 = self.MARGIN + col * (tw + gap)
+            x1 = x0 + tw
+            yy0 = y0 + row * (th + gap)
+            yy1 = yy0 + th
+            d.rounded_rectangle([x0, yy0, x1, yy1], radius=5,
+                                fill=s.white, outline=s.line, width=1)
+            # strip ilustrasi kecil di atas (dipendekkan: beri ruang teks)
+            self.draw_icon(tile["art"], (x0 + 4, yy0 + 3, x1 - 4, yy0 + 27))
+            self._num_badge(x0 + 6, yy0 + 5, tile["num"], small=True)
+            ty = yy0 + 30
+            f_kick = load_font("sans_bold", 10)
+            d.text((x0 + 8, ty), "%s \u00b7 %s" % (tile["place"], tile["kicker"]),
+                   font=f_kick, fill=s.red)
+            ty += 12
+            f_head = load_font("serif_bold", 13)
+            for line in wrap_text(tile["headline"], f_head, tw - 16)[:2]:
+                d.text((x0 + 8, ty), line, font=f_head, fill=s.ink)
+                ty += 14
+            f_body = load_font("sans", 10)
+            for line in wrap_text(tile["body"], f_body, tw - 16)[:1]:
+                d.text((x0 + 8, ty), line, font=f_body, fill=s.ink)
+                ty += 11
+            # sumber di posisi tetap, jauh di bawah baris body
+            f_src = load_font("sans_italic", 9)
+            d.text((x0 + 8, yy1 - 11), tile["source"], font=f_src, fill=s.grey)
 
+    # -------------------------------------------------------- map + more --
     def map_and_more(self):
-        s = self.style
         d = self.draw
-        y0, y1 = 754, 934
-        # kiri: peta
-        map_w = 470
-        mx0, mx1 = MARGIN, MARGIN + map_w
-        f_t = load_font("sans_bold", s.brief_title)
-        d.text((mx0, y0), "WHERE IT HAPPENED", font=f_t, fill=s.ink)
-        d.line([mx0, y0 + 18, mx1, y0 + 18], fill=s.red, width=2)
-        draw_map(d, (mx0, y0 + 24, mx1, y1 - 22))
-        f_cap = load_font("sans", 9)
-        cap = "Red numbers mark stories 1–11. Positions are approximate."
-        d.text((mx0, y1 - 18), cap, font=f_cap, fill=s.grey)
-        # kanan: daftar ALSO ON — satu kolom 14 baris, tiap baris satu baris
-        bx0 = mx1 + 16
-        bx1 = CANVAS_W - MARGIN
-        d.text((bx0, y0), "ALSO ON THURSDAY 19 NOVEMBER", font=f_t, fill=s.red_dark)
-        d.line([bx0, y0 + 18, bx1, y0 + 18], fill=s.red, width=2)
-        f_b = load_font("sans", s.brief_text)
-        for i, brief in enumerate(BRIEFS):
-            by = y0 + 26 + i * 11
-            line = f"{brief['num']} {brief['place']} — {brief['text']} {brief['source']}."
-            while f_b.getlength(line) > (bx1 - bx0) and len(line) > 20:
-                line = line[:-4] + "…"
-            d.text((bx0, by), line, font=f_b, fill=s.ink)
+        s = self.style
+        y0, y1 = 718, 928
+        mid = self.MARGIN + 452
+        # ---- kiri: peta dunia
+        d.rounded_rectangle([self.MARGIN, y0, mid, y1], radius=6,
+                            fill=s.white, outline=s.line, width=1)
+        f_title = load_font("sans_bold", 13)
+        d.text((self.MARGIN + 10, y0 + 8), "WHERE IT HAPPENED",
+               font=f_title, fill=s.navy)
+        self.draw_map((self.MARGIN + 8, y0 + 30, mid - 8, y1 - 28))
+        f_cap = load_font("sans_italic", 10)
+        d.text((self.MARGIN + 10, y1 - 22),
+               "Red numbers mark stories 1-11.",
+               font=f_cap, fill=s.grey)
+        # ---- kanan: ALSO ON
+        x0 = mid + 12
+        x1 = self.W - self.MARGIN
+        d.rounded_rectangle([x0, y0, x1, y1], radius=6,
+                            fill=s.cream, outline=s.line, width=1)
+        d.text((x0 + 10, y0 + 8), "ALSO ON THURSDAY 19 NOVEMBER",
+               font=f_title, fill=s.navy)
+        f_num = load_font("sans_bold", 11)
+        f_txt = load_font("sans", 11)
+        ty = y0 + 30
+        text_x = x0 + 38
+        max_w = x1 - text_x - 8
+        for b in BRIEFS:
+            num = "%d." % b["num"]
+            d.text((x0 + 10, ty), num, font=f_num, fill=s.red)
+            # potong aman: buang kata dari ujung isi sampai baris muat
+            body = b["text"]
+            line = "%s - %s (%s)" % (b["place"], body, b["source"])
+            if d.textlength(line, font=f_txt) > max_w:
+                words = body.split()
+                while (len(words) > 1 and d.textlength(
+                        "%s - %s\u2026 (%s)" % (b["place"], " ".join(words),
+                                               b["source"]),
+                        font=f_txt) > max_w):
+                    words.pop()
+                line = "%s - %s\u2026 (%s)" % (b["place"], " ".join(words),
+                                              b["source"])
+            d.text((text_x, ty), line, font=f_txt, fill=s.ink)
+            ty += 13
+        # garis pemisah halus di bawah judul
+        d.line([(x0 + 10, y0 + 26), (x1 - 10, y0 + 26)], fill=s.line, width=1)
 
+    # --------------------------------------------------------- datecheck --
     def datecheck(self):
-        s = self.style
         d = self.draw
-        y0, y1 = 940, 988
-        d.rectangle([MARGIN, y0, CANVAS_W - MARGIN, y1], fill=s.navy)
-        # label di baris sendiri
-        f_c = load_font("sans_bold", s.check_size)
-        label = "DATE CHECK ✓  LEFT OUT — NOT 19 NOVEMBER NEWS:"
-        d.text((MARGIN + 8, y0 + 4), label, font=f_c, fill="#F2C230")
-        # daftar item di dua baris penuh
-        f_i = load_font("sans", s.check_size)
-        items = "  ·  ".join(LEFT_OUT)
-        lines = self._wrapped(items, f_i, CANVAS_W - 2 * MARGIN - 16, max_lines=2)
-        ly = y0 + 20
-        for line in lines:
-            d.text((MARGIN + 8, ly), line, font=f_i, fill="#FFFFFF")
-            ly += s.check_size + 4
-
-    def attribution(self):
         s = self.style
-        f = load_font("sans", s.attrib_size)
-        lines = self._wrapped(ATTRIBUTION, f, CANVAS_W - 2 * MARGIN, max_lines=2)
-        y = 992
-        for line in lines:
-            tw = self.draw.textlength(line, font=f)
-            self.draw.text(((CANVAS_W - tw) / 2, y), line, font=f, fill=s.grey)
-            y += s.attrib_size + 3
+        y0, y1 = 936, 1024
+        d.rectangle([0, y0, self.W, y1], fill=s.navy)
+        f_lab = load_font("sans_bold", 12)
+        d.text((self.MARGIN, y0 + 8), "DATE CHECK", font=f_lab, fill=s.gold)
+        f_head = load_font("sans_bold", 12)
+        d.text((self.MARGIN + 96, y0 + 8),
+               "LEFT OUT - NOT 19 NOVEMBER NEWS:", font=f_head, fill=s.white)
+        f_item = load_font("sans", 11)
+        items = "   |   ".join(LEFT_OUT)
+        for j, line in enumerate(wrap_text(items, f_item, self.W - 2 * self.MARGIN)):
+            d.text((self.MARGIN, y0 + 28 + j * 14), line, font=f_item,
+                   fill=(205, 210, 225))
+        f_attr = load_font("sans_italic", 10)
+        attr = ("Every story here happened, or was first reported, on Thursday "
+                "19 November 2026. Sources: Reuters, AP, AFP, BBC, Al Jazeera, "
+                "UN News, Euronews, ABC, RNZ, Xinhua, Nature.")
+        d.text((self.MARGIN, y1 - 18), attr, font=f_attr, fill=(170, 180, 200))
 
+    # ------------------------------------------------------------- render --
     def render(self):
         self.banner()
         self.subhead()
-        self.regions()
         self.stats()
         self.features()
         self.tiles()
         self.map_and_more()
         self.datecheck()
-        self.attribution()
-        return self.image
+        return self.img
+
+    # ------------------------------------------------------------ helpers --
+    def _num_badge(self, x, y, num, small=False):
+        d = self.draw
+        r = 11 if not small else 9
+        d.ellipse([x, y, x + 2 * r, y + 2 * r], fill=self.style.red)
+        f = load_font("sans_bold", 12 if not small else 10)
+        t = str(num)
+        tw = d.textlength(t, font=f)
+        th = f.size
+        d.text((x + r - tw / 2, y + r - th / 2 - 1), t, font=f,
+               fill=self.style.white)
+
+    # ------------------------------------------------------- illustrations --
+    def draw_summit(self, box):
+        """Meja summit + 3 bendera (AS, China, Rusia)."""
+        d = self.draw
+        x0, y0, x1, y1 = box
+        d.rectangle(box, fill=(214, 226, 240))
+        # langit + lantai
+        d.rectangle([x0, y0, x1, y0 + (y1 - y0) // 2], fill=(140, 175, 210))
+        # tiga bendera
+        flags = [(196, 30, 38), (222, 41, 16), (255, 255, 255)]
+        fw = (x1 - x0) // 5
+        for i, col in enumerate(flags):
+            fx = x0 + (x1 - x0) // 4 * (i + 1) - fw // 2
+            d.rectangle([fx, y0 + 10, fx + fw, y0 + 34], fill=col,
+                        outline=(90, 90, 90))
+            d.line([(fx + fw // 2, y0 + 34), (fx + fw // 2, y0 + 58)],
+                   fill=(60, 60, 60), width=2)
+        # meja
+        my = y0 + (y1 - y0) * 2 // 3
+        d.rectangle([x0 + 14, my, x1 - 14, my + 14], fill=(120, 72, 32))
+        d.rectangle([x0 + 22, my + 14, x0 + 34, y1 - 6], fill=(90, 55, 25))
+        d.rectangle([x1 - 34, my + 14, x1 - 22, y1 - 6], fill=(90, 55, 25))
+        # tiga kursi / kepala
+        for cx in (x0 + (x1 - x0) // 4, (x0 + x1) // 2, x0 + 3 * (x1 - x0) // 4):
+            d.ellipse([cx - 13, my - 26, cx + 13, my], fill=(240, 210, 180))
+            d.rectangle([cx - 16, my, cx + 16, my + 8], fill=(40, 60, 90))
+
+    def draw_court(self, box):
+        """Gedung pengadilan + timbangan keadilan."""
+        d = self.draw
+        x0, y0, x1, y1 = box
+        d.rectangle(box, fill=(226, 222, 210))
+        # gedung: kolom + atap segitiga
+        cx = (x0 + x1) // 2
+        d.polygon([(cx - 70, y0 + 34), (cx + 70, y0 + 34), (cx, y0 + 8)],
+                  fill=(150, 140, 120))
+        d.rectangle([cx - 62, y0 + 34, cx + 62, y1 - 8], fill=(200, 192, 172))
+        for i in range(4):
+            px = cx - 52 + i * 34
+            d.rectangle([px, y0 + 42, px + 14, y1 - 8], fill=(240, 236, 224))
+        # timbangan kecil di tengah depan
+        sx = cx
+        sy = y1 - 34
+        d.line([(sx, sy - 22), (sx, sy)], fill=(60, 50, 30), width=2)
+        d.line([(sx - 20, sy - 22), (sx + 20, sy - 22)], fill=(60, 50, 30), width=2)
+        d.arc([sx - 28, sy - 22, sx - 12, sy - 6], 0, 180, fill=(60, 50, 30), width=2)
+        d.arc([sx + 12, sy - 22, sx + 28, sy - 6], 0, 180, fill=(60, 50, 30), width=2)
+
+    def draw_climate(self, box):
+        """Globe + termometer."""
+        d = self.draw
+        x0, y0, x1, y1 = box
+        d.rectangle(box, fill=(200, 226, 214))
+        cx = (x0 + x1) // 2 - 20
+        cy = (y0 + y1) // 2
+        r = min((x1 - x0) // 4, (y1 - y0) // 2 - 8)
+        # globe
+        d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(90, 160, 220),
+                  outline=(30, 90, 140), width=2)
+        d.ellipse([cx - r // 2, cy - r // 2, cx, cy], fill=(60, 160, 90))
+        d.ellipse([cx + r // 4, cy + r // 4, cx + r // 2, cy + r // 2],
+                  fill=(60, 160, 90))
+        d.arc([cx - r, cy - r, cx + r, cy + r], 200, 340, fill=(255, 255, 255), width=2)
+        # termometer
+        tx = x1 - 34
+        d.rounded_rectangle([tx - 6, y0 + 12, tx + 6, y1 - 18], radius=6,
+                            fill=(255, 255, 255), outline=(150, 40, 40), width=2)
+        d.ellipse([tx - 12, y1 - 30, tx + 12, y1 - 6], fill=(200, 40, 40))
+        d.rectangle([tx - 3, y0 + 22, tx + 3, y1 - 20], fill=(220, 60, 60))
+        # matahari kecil
+        d.ellipse([x0 + 14, y0 + 12, x0 + 34, y0 + 32], fill=(255, 200, 60))
+
+    def draw_map(self, box):
+        """Peta dunia sederhana: benua sebagai poligon + titik merah bernomor."""
+        d = self.draw
+        s = self.style
+        x0, y0, x1, y1 = box
+        d.rectangle(box, fill=(222, 232, 240))
+        w, h = x1 - x0, y1 - y0
+        # benua (koordinat relatif 0-100 x 0-60)
+        continents = [
+            [(6, 12), (20, 8), (26, 16), (18, 24), (8, 22)],       # N Amerika
+            [(24, 30), (32, 28), (34, 40), (28, 46), (23, 36)],    # S Amerika
+            [(46, 10), (56, 8), (58, 18), (50, 20), (45, 14)],     # Eropa
+            [(46, 24), (58, 22), (62, 34), (52, 42), (46, 32)],    # Afrika
+            [(62, 8), (82, 6), (90, 16), (78, 26), (64, 20)],      # Asia
+            [(82, 42), (92, 40), (94, 48), (84, 50)],              # Oseania
+        ]
+        for poly in continents:
+            pts = [(x0 + px * w / 100, y0 + py * h / 60) for px, py in poly]
+            d.polygon(pts, fill=(150, 190, 140), outline=(90, 140, 90))
+        # garis khatulistiwa putus-putus
+        for gx in range(x0, x1, 12):
+            d.line([(gx, y0 + h // 2), (gx + 6, y0 + h // 2)], fill=(160, 160, 160), width=1)
+        # pin bernomor 1-11
+        pins = [
+            (1, 78, 12), (2, 50, 14), (3, 74, 10), (4, 55, 14), (5, 66, 20),
+            (6, 80, 16), (7, 58, 10), (8, 40, 8), (9, 18, 18), (10, 55, 30),
+            (11, 30, 34),
+        ]
+        f_pin = load_font("sans_bold", 9)
+        for num, px, py in pins:
+            cx = x0 + px * w / 100
+            cy = y0 + py * h / 60
+            d.ellipse([cx - 8, cy - 8, cx + 8, cy + 8], fill=s.red,
+                      outline=s.white, width=1)
+            t = str(num)
+            tw = d.textlength(t, font=f_pin)
+            d.text((cx - tw / 2, cy - 5), t, font=f_pin, fill=s.white)
+
+    def draw_icon(self, kind, box):
+        """Ikon kecil untuk strip atas tiap ubin."""
+        d = self.draw
+        x0, y0, x1, y1 = box
+        palettes = {
+            "bridge": (200, 220, 240), "missile": (240, 210, 200),
+            "storm": (210, 215, 235), "court": (226, 222, 210),
+            "ice": (215, 235, 245), "chart": (210, 235, 215),
+            "game": (235, 215, 240), "march": (240, 230, 200),
+        }
+        d.rectangle(box, fill=palettes.get(kind, (230, 230, 230)))
+        cx = (x0 + x1) // 2
+        cy = (y0 + y1) // 2
+        if kind == "bridge":
+            d.line([(x0 + 6, cy + 6), (x1 - 6, cy + 6)], fill=(60, 60, 90), width=2)
+            d.arc([cx - 18, cy - 12, cx + 18, cy + 12], 180, 360, fill=(60, 60, 90), width=2)
+            d.line([(x0 + 14, cy - 10), (x0 + 14, cy + 6)], fill=(60, 60, 90), width=2)
+            d.line([(x1 - 14, cy - 10), (x1 - 14, cy + 6)], fill=(60, 60, 90), width=2)
+        elif kind == "missile":
+            d.polygon([(cx, y0 + 3), (cx + 7, cy), (cx - 7, cy)], fill=(150, 40, 40))
+            d.rectangle([cx - 7, cy, cx + 7, y1 - 4], fill=(120, 30, 30))
+            d.line([(cx - 12, y1 - 4), (cx - 6, y1 - 8)], fill=(200, 120, 40), width=2)
+            d.line([(cx + 12, y1 - 4), (cx + 6, y1 - 8)], fill=(200, 120, 40), width=2)
+        elif kind == "storm":
+            d.ellipse([cx - 14, cy - 8, cx + 2, cy + 8], fill=(120, 140, 180))
+            d.ellipse([cx - 2, cy - 10, cx + 14, cy + 6], fill=(90, 110, 160))
+            d.line([(cx - 6, cy + 8), (cx - 12, y1 - 3)], fill=(240, 200, 60), width=2)
+            d.line([(cx + 4, cy + 8), (cx - 2, y1 - 3)], fill=(240, 200, 60), width=2)
+        elif kind == "court":
+            d.polygon([(cx - 16, cy - 4), (cx + 16, cy - 4), (cx, cy - 12)],
+                      fill=(150, 140, 120))
+            d.rectangle([cx - 13, cy - 4, cx + 13, cy + 8], fill=(200, 192, 172))
+        elif kind == "ice":
+            d.polygon([(cx - 14, cy + 8), (cx - 8, cy - 10), (cx, cy + 4),
+                       (cx + 8, cy - 10), (cx + 14, cy + 8)], fill=(200, 230, 245),
+                      outline=(120, 170, 200))
+        elif kind == "chart":
+            pts = [(x0 + 8, cy + 6), (cx - 8, cy - 4), (cx + 2, cy + 2),
+                   (x1 - 8, cy - 8)]
+            d.line(pts, fill=(40, 140, 60), width=2)
+            for px, py in pts:
+                d.ellipse([px - 2, py - 2, px + 2, py + 2], fill=(40, 140, 60))
+        elif kind == "game":
+            d.rounded_rectangle([cx - 16, cy - 8, cx + 16, cy + 8], radius=5,
+                                fill=(90, 60, 120))
+            d.ellipse([cx - 9, cy - 3, cx - 3, cy + 3], fill=(255, 255, 255))
+            d.ellipse([cx + 3, cy - 3, cx + 9, cy + 3], fill=(255, 200, 60))
+        else:  # march
+            for i, px in enumerate((cx - 14, cx, cx + 14)):
+                d.ellipse([px - 4, cy - 10, px + 4, cy - 2], fill=(60, 60, 90))
+                d.rectangle([px - 3, cy - 2, px + 3, cy + 9], fill=(60, 60, 90))
+                d.line([(px - 8, cy - 12), (px + 8, cy - 12)], fill=(180, 40, 40), width=2)
+                d.line([(px, cy - 12), (px, cy - 2)], fill=(120, 40, 40), width=1)
 
 
 def build_poster():
-    """Bangun poster lengkap dan kembalikan sebagai PIL Image."""
-    poster = Poster()
-    return poster.render()
+    """Render poster lengkap, kembalikan PIL Image."""
+    return Poster().render()
