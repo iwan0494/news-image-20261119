@@ -1,44 +1,50 @@
-"""Entry point for the news-image-20261119 bounty.
+# main.py — entry point bounty news-image-20261119 (ronde 3).
+# Me-render poster dari nol setiap kali dijalankan (bukan menyalin PNG),
+# lalu menulisnya ke /output/entry.png (atau --out).
+# Python 3.13, stdlib + PIL saja. Tanpa network, tanpa randomness.
 
-The poster itself is a finished artifact built by render_poster.py. This
-program only puts a verbatim copy of it where the bounty harness looks
-for the entry image, so the harness can score the poster as submitted.
-It does no drawing, no fetching and no guessing: it finds the poster
-beside this file, makes the output folder if needed, copies the file,
-and reports the copy it made.
-"""
-
+import argparse
+import hashlib
 import os
-import shutil
 import sys
+from pathlib import Path
 
-POSTER_FILE = "poster-20261119.png"
-DEFAULT_OUTDIR = "/output"
+from poster import build_poster
+
+MAX_BYTES = 1_048_576
 
 
-def main():
-    here = os.path.dirname(os.path.abspath(__file__))
-    source = os.path.join(here, POSTER_FILE)
-    outdir = os.environ.get("MAKEFUN_OUTPUT_DIR", DEFAULT_OUTDIR)
-    target = os.path.join(outdir, "entry.png")
+def build():
+    parser = argparse.ArgumentParser(description="Render poster berita 19 November 2026.")
+    parser.add_argument("--out", default=None, help="path file PNG output (default: $MAKEFUN_OUTPUT_DIR/entry.png)")
+    args = parser.parse_args()
+
+    if args.out:
+        target = Path(args.out)
+    else:
+        out_dir = Path(os.environ.get("MAKEFUN_OUTPUT_DIR", "/output"))
+        target = out_dir / "entry.png"
+
     try:
-        os.makedirs(outdir, exist_ok=True)
-        if not os.path.isfile(source):
-            raise FileNotFoundError(source)
-        shutil.copyfile(source, target)
-    except FileNotFoundError:
-        print("poster not found: " + source, file=sys.stderr)
-        sys.exit(1)
+        target.parent.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
-        print("could not write entry: " + str(exc), file=sys.stderr)
+        print(f"main.py: cannot create output dir {target.parent}: {exc}", file=sys.stderr)
         sys.exit(1)
-    source_size = os.path.getsize(source)
-    size = os.path.getsize(target)
-    if size != source_size:
-        print("copy incomplete: " + target, file=sys.stderr)
+
+    image = build_poster()
+    image.save(target, format="PNG")
+
+    if not target.exists():
+        print(f"main.py: output missing after render: {target}", file=sys.stderr)
         sys.exit(1)
-    print("copied " + POSTER_FILE + " -> " + target + " (" + str(size) + " bytes)")
+    size = target.stat().st_size
+    if size > MAX_BYTES:
+        print(f"main.py: output too large: {size} bytes > {MAX_BYTES}", file=sys.stderr)
+        sys.exit(1)
+
+    digest = hashlib.sha256(target.read_bytes()).hexdigest()
+    print(f"main.py: OK — wrote {target} ({size} bytes, sha256 {digest})")
 
 
 if __name__ == "__main__":
-    main()
+    build()
