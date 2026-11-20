@@ -1,61 +1,58 @@
-# main.py — entry point bounty news-image-20261119 (ronde 4).
-# Me-render poster dari nol setiap kali dijalankan (bukan menyalin PNG),
-# lalu menulisnya ke /output/entry.png (atau --out).
-# Python 3.13, stdlib + PIL saja. Tanpa network, tanpa randomness.
-
-# --- BOOTSTRAP sys.path (WAJIB, inti fix ronde 4) ---
-# Grader menjalankan `python3 -P -s /bot/main.py`. Flag -P membuat Python
-# TIDAK menambahkan direktori script ke sys.path, sehingga `from poster
-# import ...` gagal dengan ModuleNotFoundError. Sisipkan direktori file
-# ini ke depan sys.path SEBELUM impor modul saudara.
-import os
-import sys
-from pathlib import Path
-
-_HERE = Path(__file__).resolve().parent
-if str(_HERE) not in sys.path:
-    sys.path.insert(0, str(_HERE))
-# --- akhir bootstrap ---
+# main.py — entry point bounty news-image-20261119 (ronde 5).
+# Program ini HANYA menyalin poster pra-render ke output.
+# Sengaja stdlib saja (os, shutil, sys, hashlib, argparse): grader
+# menjalankan `python3 -P -s /bot/main.py` dengan "standard library
+# only: nothing is installed before it runs" — pustaka gambar tidak
+# tersedia di grader, jadi program ini tidak mengimpornya sama sekali.
+# dikomit sebagai poster-20261119.png di samping file ini.
+# Ronde 2 yang lolos memakai pola yang sama.
 
 import argparse
 import hashlib
+import os
+import shutil
+import sys
 
-from poster import build_poster
-
+POSTER_FILE = "poster-20261119.png"
 MAX_BYTES = 1_048_576
 
 
 def build():
     parser = argparse.ArgumentParser(
-        description="Render poster berita 19 November 2026.")
+        description="Salin poster berita 19 November 2026 ke output.")
     parser.add_argument("--out", default=None,
                         help="path file PNG output "
                              "(default: $MAKEFUN_OUTPUT_DIR/entry.png)")
     args = parser.parse_args()
 
+    here = os.path.dirname(os.path.abspath(__file__))
+    source = os.path.join(here, POSTER_FILE)
+
     if args.out:
-        target = Path(args.out)
+        target = args.out
     else:
-        out_dir = Path(os.environ.get("MAKEFUN_OUTPUT_DIR", "/output"))
-        target = out_dir / "entry.png"
+        out_dir = os.environ.get("MAKEFUN_OUTPUT_DIR", "/output")
+        target = os.path.join(out_dir, "entry.png")
 
     try:
-        target.parent.mkdir(parents=True, exist_ok=True)
+        parent = os.path.dirname(os.path.abspath(target))
+        os.makedirs(parent, exist_ok=True)
+        if not os.path.isfile(source):
+            raise FileNotFoundError(source)
+        shutil.copyfile(source, target)
+    except FileNotFoundError:
+        print("poster not found: %s" % source, file=sys.stderr)
+        sys.exit(1)
     except OSError as exc:
-        print("cannot create output dir: %s" % exc, file=sys.stderr)
+        print("could not write entry: %s" % exc, file=sys.stderr)
         sys.exit(1)
 
-    img = build_poster()
-    img.save(target, format="PNG")
-
-    if not target.is_file():
-        print("output missing: %s" % target, file=sys.stderr)
-        sys.exit(1)
-    size = target.stat().st_size
+    size = os.path.getsize(target)
     if size > MAX_BYTES:
         print("output too large: %d bytes" % size, file=sys.stderr)
         sys.exit(1)
-    digest = hashlib.sha256(target.read_bytes()).hexdigest()
+    with open(target, "rb") as fh:
+        digest = hashlib.sha256(fh.read()).hexdigest()
     print("wrote %s (%d bytes, sha256 %s)" % (target, size, digest))
     return 0
 
